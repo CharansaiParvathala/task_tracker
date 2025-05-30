@@ -1,5 +1,6 @@
 import { User, UserRole, Project, Vehicle, Driver, ProgressUpdate, PaymentRequest, PhotoWithMetadata, PaymentPurpose } from './types';
 import { v4 as uuidv4 } from 'uuid';
+import { couchbaseStorage } from './couchbaseStorage';
 
 const STORAGE_KEYS = {
   USERS: 'sai_balaji_users',
@@ -13,79 +14,58 @@ const STORAGE_KEYS = {
 };
 
 // Initialize the storage with default data
-export function initializeStorage() {
-  // Create permanent accounts if they don't exist
-  const users = getUsers();
-  
-  // Admin account
-  if (!users.some(user => user.email === 'admin@saibalaji.com')) {
-    const adminUser: User = {
-      id: uuidv4(),
-      name: 'Admin User',
-      email: 'admin@saibalaji.com',
-      password: 'admin123',
-      role: 'admin'
-    };
-    users.push(adminUser);
-  }
-  
-  // Checker account
-  if (!users.some(user => user.email === 'checker@saibalaji.com')) {
-    const checkerUser: User = {
-      id: uuidv4(),
-      name: 'Checker User',
-      email: 'checker@saibalaji.com',
-      password: 'checker123',
-      role: 'checker'
-    };
-    users.push(checkerUser);
-  }
-  
-  // Owner account
-  if (!users.some(user => user.email === 'owner@saibalaji.com')) {
-    const ownerUser: User = {
-      id: uuidv4(),
-      name: 'Owner User',
-      email: 'owner@saibalaji.com',
-      password: 'owner123',
-      role: 'owner'
-    };
-    users.push(ownerUser);
-  }
-  
-  // Save updated user list
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-  
-  // Check if other storages need initialization
-  if (!localStorage.getItem(STORAGE_KEYS.PROJECTS)) {
-    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify([]));
-  }
-  
-  if (!localStorage.getItem(STORAGE_KEYS.VEHICLES)) {
-    localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify([]));
-  }
-  
-  if (!localStorage.getItem(STORAGE_KEYS.DRIVERS)) {
-    localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify([]));
-  }
-  
-  if (!localStorage.getItem(STORAGE_KEYS.PROGRESS_UPDATES)) {
-    localStorage.setItem(STORAGE_KEYS.PROGRESS_UPDATES, JSON.stringify([]));
-  }
-  
-  if (!localStorage.getItem(STORAGE_KEYS.PAYMENT_REQUESTS)) {
-    localStorage.setItem(STORAGE_KEYS.PAYMENT_REQUESTS, JSON.stringify([]));
-  }
-  
-  if (!localStorage.getItem(STORAGE_KEYS.BACKUP_LINKS)) {
-    localStorage.setItem(STORAGE_KEYS.BACKUP_LINKS, JSON.stringify([]));
+export async function initializeStorage() {
+  try {
+    // Connect to Couchbase
+    await couchbaseStorage.connect();
+    
+    // Create permanent accounts if they don't exist
+    const users = await couchbaseStorage.getUsers();
+    
+    // Admin account
+    if (!users.some(user => user.email === 'admin@saibalaji.com')) {
+      const adminUser: User = {
+        id: `admin-${Date.now()}`,
+        name: 'Admin User',
+        email: 'admin@saibalaji.com',
+        password: 'admin123',
+        role: 'admin'
+      };
+      await couchbaseStorage.createUser(adminUser);
+    }
+    
+    // Checker account
+    if (!users.some(user => user.email === 'checker@saibalaji.com')) {
+      const checkerUser: User = {
+        id: `checker-${Date.now()}`,
+        name: 'Checker User',
+        email: 'checker@saibalaji.com',
+        password: 'checker123',
+        role: 'checker'
+      };
+      await couchbaseStorage.createUser(checkerUser);
+    }
+    
+    // Owner account
+    if (!users.some(user => user.email === 'owner@saibalaji.com')) {
+      const ownerUser: User = {
+        id: `owner-${Date.now()}`,
+        name: 'Owner User',
+        email: 'owner@saibalaji.com',
+        password: 'owner123',
+        role: 'owner'
+      };
+      await couchbaseStorage.createUser(ownerUser);
+    }
+  } catch (error) {
+    console.error('Failed to initialize storage:', error);
+    throw error;
   }
 }
 
 // User Management
-export function getUsers(): User[] {
-  const users = localStorage.getItem(STORAGE_KEYS.USERS);
-  return users ? JSON.parse(users) : [];
+export async function getUsers(): Promise<User[]> {
+  return await couchbaseStorage.getUsers();
 }
 
 // Alias function for compatibility
@@ -142,26 +122,8 @@ export function registerUser(name: string, email: string, password: string, role
   return { success: true };
 }
 
-export function createUser(name: string, email: string, password: string, role: UserRole): { success: boolean; message: string; user?: User } {
-  const users = getUsers();
-  
-  // Check if email already exists
-  if (users.some(user => user.email === email)) {
-    return { success: false, message: 'Email already registered.' };
-  }
-  
-  const newUser: User = {
-    id: uuidv4(),
-    name,
-    email,
-    password,
-    role
-  };
-  
-  users.push(newUser);
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-  
-  return { success: true, message: 'User created successfully.', user: newUser };
+export async function createUser(user: User): Promise<User> {
+  return await couchbaseStorage.createUser(user);
 }
 
 export function updateUser(user: User): { success: boolean; message: string } {
@@ -192,9 +154,8 @@ export function deleteUser(id: string): { success: boolean; message: string } {
 }
 
 // Project Management
-export function getProjects(): Project[] {
-  const projects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
-  return projects ? JSON.parse(projects) : [];
+export async function getProjects(): Promise<Project[]> {
+  return await couchbaseStorage.getProjects();
 }
 
 // Alias function for compatibility
@@ -206,23 +167,12 @@ export function getProjectById(id: string | undefined): Project | null {
   return projects.find(project => project.id === id) || null;
 }
 
-export function getProjectsByLeaderId(leaderId: string): Project[] {
-  const projects = getProjects();
-  return projects.filter(project => project.leaderId === leaderId);
+export async function getProjectsByLeaderId(leaderId: string): Promise<Project[]> {
+  return await couchbaseStorage.getProjectsByLeaderId(leaderId);
 }
 
-export function createProject(project: Omit<Project, 'id'>): Project {
-  const projects = getProjects();
-  const newProject: Project = {
-    ...project,
-    id: uuidv4(),
-    completedWork: 0,
-    createdAt: new Date().toISOString()
-  };
-  
-  projects.push(newProject);
-  localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
-  return newProject;
+export async function createProject(project: Project): Promise<Project> {
+  return await couchbaseStorage.createProject(project);
 }
 
 export function updateProject(project: Project): void {
@@ -236,9 +186,8 @@ export function updateProject(project: Project): void {
 }
 
 // Vehicle Management
-export function getVehicles(): Vehicle[] {
-  const vehicles = localStorage.getItem(STORAGE_KEYS.VEHICLES);
-  return vehicles ? JSON.parse(vehicles) : [];
+export async function getVehicles(): Promise<Vehicle[]> {
+  return await couchbaseStorage.getVehicles();
 }
 
 // Alias function for compatibility
@@ -250,16 +199,8 @@ export function getVehicleById(id: string | undefined): Vehicle | null {
   return vehicles.find(vehicle => vehicle.id === id) || null;
 }
 
-export function createVehicle(vehicle: Omit<Vehicle, 'id'>): Vehicle {
-  const vehicles = getVehicles();
-  const newVehicle: Vehicle = {
-    ...vehicle,
-    id: uuidv4()
-  };
-  
-  vehicles.push(newVehicle);
-  localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify(vehicles));
-  return newVehicle;
+export async function createVehicle(vehicle: Vehicle): Promise<Vehicle> {
+  return await couchbaseStorage.createVehicle(vehicle);
 }
 
 export function updateVehicle(vehicle: Vehicle): void {
@@ -279,9 +220,8 @@ export function deleteVehicle(id: string): void {
 }
 
 // Driver Management
-export function getDrivers(): Driver[] {
-  const drivers = localStorage.getItem(STORAGE_KEYS.DRIVERS);
-  return drivers ? JSON.parse(drivers) : [];
+export async function getDrivers(): Promise<Driver[]> {
+  return await couchbaseStorage.getDrivers();
 }
 
 // Alias function for compatibility
@@ -292,16 +232,8 @@ export function getDriverById(id: string): Driver | null {
   return drivers.find(driver => driver.id === id) || null;
 }
 
-export function createDriver(driver: Omit<Driver, 'id'>): Driver {
-  const drivers = getDrivers();
-  const newDriver: Driver = {
-    ...driver,
-    id: uuidv4()
-  };
-  
-  drivers.push(newDriver);
-  localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(drivers));
-  return newDriver;
+export async function createDriver(driver: Driver): Promise<Driver> {
+  return await couchbaseStorage.createDriver(driver);
 }
 
 export function updateDriver(driver: Driver): void {
@@ -321,14 +253,8 @@ export function deleteDriver(id: string): void {
 }
 
 // Progress Updates Management
-export function getProgressUpdates(projectFolder?: string): ProgressUpdate[] {
-  const updates = localStorage.getItem(STORAGE_KEYS.PROGRESS_UPDATES);
-  const allUpdates = updates ? JSON.parse(updates) : [];
-  
-  if (projectFolder) {
-    return allUpdates.filter(update => update.projectFolder === projectFolder);
-  }
-  return allUpdates;
+export async function getProgressUpdates(): Promise<ProgressUpdate[]> {
+  return await couchbaseStorage.getProgressUpdates();
 }
 
 export const getAllProgressUpdates = getProgressUpdates;
@@ -379,50 +305,9 @@ async function compressImage(dataUrl: string, maxWidth = 800): Promise<string> {
   });
 }
 
-export async function createProgressUpdate(update: Omit<ProgressUpdate, 'id'>, projectFolder?: string): Promise<ProgressUpdate> {
-  const updates = getProgressUpdates();
-  
-  // Compress all images before storage
-  const compressedPhotos = await Promise.all(
-    update.photos.map(async (photo) => ({
-      ...photo,
-      dataUrl: await compressImage(photo.dataUrl)
-    }))
-  );
-
-  const compressedStartMeter = update.startMeterReading ? {
-    ...update.startMeterReading,
-    dataUrl: await compressImage(update.startMeterReading.dataUrl)
-  } : undefined;
-
-  const compressedEndMeter = update.endMeterReading ? {
-    ...update.endMeterReading,
-    dataUrl: await compressImage(update.endMeterReading.dataUrl)
-  } : undefined;
-
-  const newUpdate: ProgressUpdate = {
-    ...update,
-    id: uuidv4(),
-    projectFolder: projectFolder || `projects/mail/${update.projectId}`,
-    photos: compressedPhotos,
-    startMeterReading: compressedStartMeter,
-    endMeterReading: compressedEndMeter
-  };
-  
-  updates.push(newUpdate);
-  localStorage.setItem(STORAGE_KEYS.PROGRESS_UPDATES, JSON.stringify(updates));
-  
-  // Update project's completed work
-  const project = getProjectById(update.projectId);
-  if (project) {
-    project.completedWork += update.completedWork;
-    updateProject(project);
-  }
-  
-  return newUpdate;
+export async function createProgressUpdate(update: ProgressUpdate): Promise<ProgressUpdate> {
+  return await couchbaseStorage.createProgressUpdate(update);
 }
-
-export const addProgressUpdate = createProgressUpdate;
 
 export function updateProgressUpdate(update: ProgressUpdate): void {
   const updates = getProgressUpdates();
@@ -443,56 +328,26 @@ export function updateProgressUpdate(update: ProgressUpdate): void {
 }
 
 // Payment Requests Management
-export function getAllPaymentRequests(projectFolder?: string): PaymentRequest[] {
-  const requests = localStorage.getItem(STORAGE_KEYS.PAYMENT_REQUESTS);
-  const allRequests = requests ? JSON.parse(requests) : [];
-  
-  if (projectFolder) {
-    return allRequests.filter(request => request.projectFolder === projectFolder);
-  }
-  return allRequests;
+export async function getPaymentRequests(): Promise<PaymentRequest[]> {
+  return await couchbaseStorage.getPaymentRequests();
 }
 
 export function getPaymentRequestById(id: string): PaymentRequest | null {
-  const requests = getAllPaymentRequests();
+  const requests = getPaymentRequests();
   return requests.find(req => req.id === id) || null;
 }
 
 export function getPaymentRequestsByProjectId(projectId: string): PaymentRequest[] {
-  const requests = getAllPaymentRequests();
+  const requests = getPaymentRequests();
   return requests.filter(req => req.projectId === projectId);
 }
 
-export async function createPaymentRequest(request: Omit<PaymentRequest, 'id'>, projectFolder?: string): Promise<PaymentRequest> {
-  const requests = getAllPaymentRequests();
-  
-  // Compress all images in payment purposes
-  const compressedPurposes = await Promise.all(
-    request.purposes.map(async (purpose) => ({
-      ...purpose,
-      images: await Promise.all(
-        purpose.images.map(async (image) => ({
-          ...image,
-          dataUrl: await compressImage(image.dataUrl)
-        }))
-      )
-    }))
-  );
-
-  const newRequest: PaymentRequest = {
-    ...request,
-    id: uuidv4(),
-    projectFolder: projectFolder || `projects/mail/${request.projectId}`,
-    purposes: compressedPurposes
-  };
-  
-  requests.push(newRequest);
-  localStorage.setItem(STORAGE_KEYS.PAYMENT_REQUESTS, JSON.stringify(requests));
-  return newRequest;
+export async function createPaymentRequest(request: PaymentRequest): Promise<PaymentRequest> {
+  return await couchbaseStorage.createPaymentRequest(request);
 }
 
 export function updatePaymentRequest(request: PaymentRequest): void {
-  const requests = getAllPaymentRequests();
+  const requests = getPaymentRequests();
   const index = requests.findIndex(r => r.id === request.id);
   
   if (index !== -1) {
@@ -534,39 +389,8 @@ export function deleteBackupLink(id: string): void {
 }
 
 // Leader Progress Stats
-export function getLeaderProgressStats() {
-  const users = getUsers();
-  const projects = getProjects();
-  const progressUpdates = getProgressUpdates();
-  
-  const leaders = users.filter(user => user.role === 'leader');
-  
-  return leaders.map(leader => {
-    const leaderProjects = projects.filter(project => project.leaderId === leader.id);
-    const leaderUpdates = progressUpdates.filter(update => 
-      leaderProjects.some(project => project.id === update.projectId)
-    );
-    
-    const totalDistance = leaderProjects.reduce((sum, project) => sum + project.completedWork, 0);
-    const totalTime = leaderUpdates.reduce((sum, update) => sum + update.timeTaken, 0);
-    
-    const totalWorkRequired = leaderProjects.reduce((sum, project) => sum + project.totalWork, 0);
-    const completionPercentage = totalWorkRequired > 0 
-      ? Math.round((totalDistance / totalWorkRequired) * 100) 
-      : 0;
-    
-    return {
-      leaderId: leader.id,
-      leaderName: leader.name,
-      projectCount: leaderProjects.length,
-      totalDistance,
-      totalTime,
-      completionPercentage,
-      recentUpdates: leaderUpdates.sort((a, b) => 
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      ).slice(0, 5)
-    };
-  });
+export async function getLeaderProgressStats(): Promise<any> {
+  return await couchbaseStorage.getLeaderProgressStats();
 }
 
 // Utility functions
@@ -586,10 +410,55 @@ export function generateExportData() {
   const data = {
     projects: getProjects(),
     progressUpdates: getProgressUpdates(),
-    paymentRequests: getAllPaymentRequests(),
+    paymentRequests: getPaymentRequests(),
     vehicles: getVehicles(),
     drivers: getDrivers()
   };
   
   return data;
+}
+
+export async function getPaymentRequestById(id: string): Promise<PaymentRequest | null> {
+  const requests = await getPaymentRequests();
+  return requests.find(req => req.id === id) || null;
+}
+
+export async function getPaymentRequestsByProjectId(projectId: string): Promise<PaymentRequest[]> {
+  const requests = await getPaymentRequests();
+  return requests.filter(req => req.projectId === projectId);
+}
+
+export async function updatePaymentRequest(request: PaymentRequest): Promise<void> {
+  await couchbaseStorage.createPaymentRequest(request);
+}
+
+export async function updateProgressUpdate(update: ProgressUpdate): Promise<void> {
+  await couchbaseStorage.createProgressUpdate(update);
+}
+
+export async function getProjectById(id: string): Promise<Project | null> {
+  const projects = await getProjects();
+  return projects.find(p => p.id === id) || null;
+}
+
+export async function updateProject(project: Project): Promise<void> {
+  await couchbaseStorage.createProject(project);
+}
+
+export async function getBackupData(): Promise<{
+  users: User[];
+  projects: Project[];
+  progressUpdates: ProgressUpdate[];
+  paymentRequests: PaymentRequest[];
+  vehicles: Vehicle[];
+  drivers: Driver[];
+}> {
+  return {
+    users: await getUsers(),
+    projects: await getProjects(),
+    progressUpdates: await getProgressUpdates(),
+    paymentRequests: await getPaymentRequests(),
+    vehicles: await getVehicles(),
+    drivers: await getDrivers()
+  };
 }
