@@ -271,6 +271,9 @@ export async function getPaymentRequests(): Promise<PaymentRequest[]> {
   return await couchbaseStorage.getPaymentRequests();
 }
 
+// Alias function for compatibility
+export const getAllPaymentRequests = getPaymentRequests;
+
 export async function getPaymentRequestById(id: string): Promise<PaymentRequest | null> {
   const requests = await getPaymentRequests();
   return requests.find(req => req.id === id) || null;
