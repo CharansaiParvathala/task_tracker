@@ -1,14 +1,7 @@
 import { User, UserRole, Project, Vehicle, Driver, ProgressUpdate, PaymentRequest, PhotoWithMetadata, PaymentPurpose } from './types';
-import { v4 as uuidv4 } from 'uuid';
 import { couchbaseStorage } from './couchbaseStorage';
 
 const STORAGE_KEYS = {
-  USERS: 'sai_balaji_users',
-  PROJECTS: 'sai_balaji_projects',
-  VEHICLES: 'sai_balaji_vehicles',
-  DRIVERS: 'sai_balaji_drivers',
-  PROGRESS_UPDATES: 'sai_balaji_progress_updates',
-  PAYMENT_REQUESTS: 'sai_balaji_payment_requests',
   CURRENT_USER: 'sai_balaji_current_user',
   BACKUP_LINKS: 'sai_balaji_backup_links'
 };
@@ -84,73 +77,33 @@ export function logoutUser(): void {
   localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
 }
 
-export function getUserByEmail(email: string): User | null {
-  const users = getUsers();
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const users = await getUsers();
   return users.find(user => user.email === email) || null;
 }
 
-export function getUserById(id: string): User | null {
-  const users = getUsers();
+export async function getUserById(id: string): Promise<User | null> {
+  const users = await getUsers();
   return users.find(user => user.id === id) || null;
 }
 
-export function getUsersByRole(role: UserRole): User[] {
-  const users = getUsers();
+export async function getUsersByRole(role: UserRole): Promise<User[]> {
+  const users = await getUsers();
   return users.filter(user => user.role === role);
-}
-
-export function registerUser(name: string, email: string, password: string, role: UserRole): { success: boolean; message?: string } {
-  const users = getUsers();
-  
-  // Check if user already exists
-  if (users.some(user => user.email === email)) {
-    return { success: false, message: 'User with this email already exists' };
-  }
-  
-  // Create new user
-  const newUser: User = {
-    id: uuidv4(),
-    name,
-    email,
-    password,
-    role
-  };
-  
-  users.push(newUser);
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-  
-  return { success: true };
 }
 
 export async function createUser(user: User): Promise<User> {
   return await couchbaseStorage.createUser(user);
 }
 
-export function updateUser(user: User): { success: boolean; message: string } {
-  const users = getUsers();
-  const index = users.findIndex(u => u.id === user.id);
-  
-  if (index === -1) {
-    return { success: false, message: 'User not found.' };
-  }
-  
-  users[index] = user;
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-  
-  return { success: true, message: 'User updated successfully.' };
+export async function updateUser(user: User): Promise<void> {
+  await couchbaseStorage.createUser(user);
 }
 
-export function deleteUser(id: string): { success: boolean; message: string } {
-  const users = getUsers();
+export async function deleteUser(id: string): Promise<void> {
+  const users = await getUsers();
   const filteredUsers = users.filter(user => user.id !== id);
-  
-  if (filteredUsers.length === users.length) {
-    return { success: false, message: 'User not found.' };
-  }
-  
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(filteredUsers));
-  
-  return { success: true, message: 'User deleted successfully.' };
+  await Promise.all(filteredUsers.map(user => couchbaseStorage.createUser(user)));
 }
 
 // Project Management
@@ -161,9 +114,8 @@ export async function getProjects(): Promise<Project[]> {
 // Alias function for compatibility
 export const getAllProjects = getProjects;
 
-export function getProjectById(id: string | undefined): Project | null {
-  if (!id) return null;
-  const projects = getProjects();
+export async function getProjectById(id: string): Promise<Project | null> {
+  const projects = await getProjects();
   return projects.find(project => project.id === id) || null;
 }
 
@@ -175,14 +127,8 @@ export async function createProject(project: Project): Promise<Project> {
   return await couchbaseStorage.createProject(project);
 }
 
-export function updateProject(project: Project): void {
-  const projects = getProjects();
-  const index = projects.findIndex(p => p.id === project.id);
-  
-  if (index !== -1) {
-    projects[index] = project;
-    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
-  }
+export async function updateProject(project: Project): Promise<void> {
+  await couchbaseStorage.createProject(project);
 }
 
 // Vehicle Management
@@ -193,9 +139,8 @@ export async function getVehicles(): Promise<Vehicle[]> {
 // Alias function for compatibility
 export const getAllVehicles = getVehicles;
 
-export function getVehicleById(id: string | undefined): Vehicle | null {
-  if (!id) return null;
-  const vehicles = getVehicles();
+export async function getVehicleById(id: string): Promise<Vehicle | null> {
+  const vehicles = await getVehicles();
   return vehicles.find(vehicle => vehicle.id === id) || null;
 }
 
@@ -203,20 +148,14 @@ export async function createVehicle(vehicle: Vehicle): Promise<Vehicle> {
   return await couchbaseStorage.createVehicle(vehicle);
 }
 
-export function updateVehicle(vehicle: Vehicle): void {
-  const vehicles = getVehicles();
-  const index = vehicles.findIndex(v => v.id === vehicle.id);
-  
-  if (index !== -1) {
-    vehicles[index] = vehicle;
-    localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify(vehicles));
-  }
+export async function updateVehicle(vehicle: Vehicle): Promise<void> {
+  await couchbaseStorage.createVehicle(vehicle);
 }
 
-export function deleteVehicle(id: string): void {
-  const vehicles = getVehicles();
+export async function deleteVehicle(id: string): Promise<void> {
+  const vehicles = await getVehicles();
   const filteredVehicles = vehicles.filter(vehicle => vehicle.id !== id);
-  localStorage.setItem(STORAGE_KEYS.VEHICLES, JSON.stringify(filteredVehicles));
+  await Promise.all(filteredVehicles.map(vehicle => couchbaseStorage.createVehicle(vehicle)));
 }
 
 // Driver Management
@@ -227,8 +166,8 @@ export async function getDrivers(): Promise<Driver[]> {
 // Alias function for compatibility
 export const getAllDrivers = getDrivers;
 
-export function getDriverById(id: string): Driver | null {
-  const drivers = getDrivers();
+export async function getDriverById(id: string): Promise<Driver | null> {
+  const drivers = await getDrivers();
   return drivers.find(driver => driver.id === id) || null;
 }
 
@@ -236,20 +175,14 @@ export async function createDriver(driver: Driver): Promise<Driver> {
   return await couchbaseStorage.createDriver(driver);
 }
 
-export function updateDriver(driver: Driver): void {
-  const drivers = getDrivers();
-  const index = drivers.findIndex(d => d.id === driver.id);
-  
-  if (index !== -1) {
-    drivers[index] = driver;
-    localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(drivers));
-  }
+export async function updateDriver(driver: Driver): Promise<void> {
+  await couchbaseStorage.createDriver(driver);
 }
 
-export function deleteDriver(id: string): void {
-  const drivers = getDrivers();
+export async function deleteDriver(id: string): Promise<void> {
+  const drivers = await getDrivers();
   const filteredDrivers = drivers.filter(driver => driver.id !== id);
-  localStorage.setItem(STORAGE_KEYS.DRIVERS, JSON.stringify(filteredDrivers));
+  await Promise.all(filteredDrivers.map(driver => couchbaseStorage.createDriver(driver)));
 }
 
 // Progress Updates Management
@@ -259,14 +192,13 @@ export async function getProgressUpdates(): Promise<ProgressUpdate[]> {
 
 export const getAllProgressUpdates = getProgressUpdates;
 
-export function getProgressUpdateById(id: string | undefined): ProgressUpdate | null {
-  if (!id) return null;
-  const updates = getProgressUpdates();
+export async function getProgressUpdateById(id: string): Promise<ProgressUpdate | null> {
+  const updates = await getProgressUpdates();
   return updates.find(update => update.id === id) || null;
 }
 
-export function getProgressUpdatesByProjectId(projectId: string): ProgressUpdate[] {
-  const updates = getProgressUpdates();
+export async function getProgressUpdatesByProjectId(projectId: string): Promise<ProgressUpdate[]> {
+  const updates = await getProgressUpdates();
   return updates.filter(update => update.projectId === projectId);
 }
 
@@ -309,22 +241,8 @@ export async function createProgressUpdate(update: ProgressUpdate): Promise<Prog
   return await couchbaseStorage.createProgressUpdate(update);
 }
 
-export function updateProgressUpdate(update: ProgressUpdate): void {
-  const updates = getProgressUpdates();
-  const index = updates.findIndex(u => u.id === update.id);
-  
-  if (index !== -1) {
-    const oldUpdate = updates[index];
-    updates[index] = update;
-    localStorage.setItem(STORAGE_KEYS.PROGRESS_UPDATES, JSON.stringify(updates));
-    
-    // Update project's completed work
-    const project = getProjectById(update.projectId);
-    if (project && oldUpdate.completedWork !== update.completedWork) {
-      project.completedWork = project.completedWork - oldUpdate.completedWork + update.completedWork;
-      updateProject(project);
-    }
-  }
+export async function updateProgressUpdate(update: ProgressUpdate): Promise<void> {
+  await couchbaseStorage.createProgressUpdate(update);
 }
 
 // Payment Requests Management
@@ -332,13 +250,13 @@ export async function getPaymentRequests(): Promise<PaymentRequest[]> {
   return await couchbaseStorage.getPaymentRequests();
 }
 
-export function getPaymentRequestById(id: string): PaymentRequest | null {
-  const requests = getPaymentRequests();
+export async function getPaymentRequestById(id: string): Promise<PaymentRequest | null> {
+  const requests = await getPaymentRequests();
   return requests.find(req => req.id === id) || null;
 }
 
-export function getPaymentRequestsByProjectId(projectId: string): PaymentRequest[] {
-  const requests = getPaymentRequests();
+export async function getPaymentRequestsByProjectId(projectId: string): Promise<PaymentRequest[]> {
+  const requests = await getPaymentRequests();
   return requests.filter(req => req.projectId === projectId);
 }
 
@@ -346,14 +264,8 @@ export async function createPaymentRequest(request: PaymentRequest): Promise<Pay
   return await couchbaseStorage.createPaymentRequest(request);
 }
 
-export function updatePaymentRequest(request: PaymentRequest): void {
-  const requests = getPaymentRequests();
-  const index = requests.findIndex(r => r.id === request.id);
-  
-  if (index !== -1) {
-    requests[index] = request;
-    localStorage.setItem(STORAGE_KEYS.PAYMENT_REQUESTS, JSON.stringify(requests));
-  }
+export async function updatePaymentRequest(request: PaymentRequest): Promise<void> {
+  await couchbaseStorage.createPaymentRequest(request);
 }
 
 // Backup Links Management
@@ -374,7 +286,7 @@ export function createBackupLink(link: Omit<BackupLink, 'id'>): BackupLink {
   const links = getAllBackupLinks();
   const newLink: BackupLink = {
     ...link,
-    id: uuidv4()
+    id: `link-${Date.now()}`
   };
   
   links.push(newLink);
@@ -404,45 +316,6 @@ export async function getCurrentLocation(): Promise<{ latitude: number; longitud
   // For demo purposes, return the default location
   // In a real app, this would use the browser's geolocation API
   return Promise.resolve(defaultLocation);
-}
-
-export function generateExportData() {
-  const data = {
-    projects: getProjects(),
-    progressUpdates: getProgressUpdates(),
-    paymentRequests: getPaymentRequests(),
-    vehicles: getVehicles(),
-    drivers: getDrivers()
-  };
-  
-  return data;
-}
-
-export async function getPaymentRequestById(id: string): Promise<PaymentRequest | null> {
-  const requests = await getPaymentRequests();
-  return requests.find(req => req.id === id) || null;
-}
-
-export async function getPaymentRequestsByProjectId(projectId: string): Promise<PaymentRequest[]> {
-  const requests = await getPaymentRequests();
-  return requests.filter(req => req.projectId === projectId);
-}
-
-export async function updatePaymentRequest(request: PaymentRequest): Promise<void> {
-  await couchbaseStorage.createPaymentRequest(request);
-}
-
-export async function updateProgressUpdate(update: ProgressUpdate): Promise<void> {
-  await couchbaseStorage.createProgressUpdate(update);
-}
-
-export async function getProjectById(id: string): Promise<Project | null> {
-  const projects = await getProjects();
-  return projects.find(p => p.id === id) || null;
-}
-
-export async function updateProject(project: Project): Promise<void> {
-  await couchbaseStorage.createProject(project);
 }
 
 export async function getBackupData(): Promise<{
