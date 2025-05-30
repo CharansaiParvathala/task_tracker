@@ -359,3 +359,22 @@ export async function getBackupData(): Promise<{
     drivers: await getDrivers()
   };
 }
+
+// Export Data Management
+export async function generateExportData(): Promise<{
+  users: User[];
+  projects: Project[];
+  progressUpdates: ProgressUpdate[];
+  paymentRequests: PaymentRequest[];
+  vehicles: Vehicle[];
+  drivers: Driver[];
+}> {
+  return {
+    users: await getUsers(),
+    projects: await getProjects(),
+    progressUpdates: await getProgressUpdates(),
+    paymentRequests: await getPaymentRequests(),
+    vehicles: await getVehicles(),
+    drivers: await getDrivers()
+  };
+}
