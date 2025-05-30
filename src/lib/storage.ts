@@ -92,6 +92,27 @@ export async function getUsersByRole(role: UserRole): Promise<User[]> {
   return users.filter(user => user.role === role);
 }
 
+export async function registerUser(name: string, email: string, password: string, role: UserRole): Promise<{ success: boolean; message?: string }> {
+  const users = await getUsers();
+  
+  // Check if user already exists
+  if (users.some(user => user.email === email)) {
+    return { success: false, message: 'User with this email already exists' };
+  }
+  
+  // Create new user
+  const newUser: User = {
+    id: `user-${Date.now()}`,
+    name,
+    email,
+    password,
+    role
+  };
+  
+  await couchbaseStorage.createUser(newUser);
+  return { success: true };
+}
+
 export async function createUser(user: User): Promise<User> {
   return await couchbaseStorage.createUser(user);
 }

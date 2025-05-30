@@ -6,18 +6,18 @@ import { toast } from '@/components/ui/sonner';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => void;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  register: (name: string, email: string, password: string, phone: string) => boolean;
+  register: (name: string, email: string, password: string, phone: string) => Promise<boolean>;
   isAuthenticated: boolean;
   role: UserRole | null;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: () => {},
+  login: async () => {},
   logout: () => {},
-  register: () => false,
+  register: async () => false,
   isAuthenticated: false,
   role: null,
 });
@@ -36,9 +36,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const login = (email: string, password: string) => {
+  const login = async (email: string, password: string) => {
     try {
-      const foundUser = getUserByEmail(email);
+      const foundUser = await getUserByEmail(email);
       
       if (!foundUser) {
         toast.error('User not found');
@@ -88,19 +88,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate('/login');
   };
   
-  const register = (name: string, email: string, password: string, phone: string): boolean => {
-    // Try registering the user - we're assigning a default role of 'leader'
-    const result = registerUser(name, email, password, 'leader');
-    
-    if (result.success) {
-      toast.success("Registration successful!", {
-        description: "You can now log in with your credentials.",
-      });
-      return true;
-    } else {
-      toast.error("Registration failed", {
-        description: result.message,
-      });
+  const register = async (name: string, email: string, password: string, phone: string): Promise<boolean> => {
+    try {
+      // Try registering the user - we're assigning a default role of 'leader'
+      const result = await registerUser(name, email, password, 'leader');
+      
+      if (result.success) {
+        toast.success("Registration successful!", {
+          description: "You can now log in with your credentials.",
+        });
+        return true;
+      } else {
+        toast.error("Registration failed", {
+          description: result.message,
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast.error('Registration failed. Please try again.');
       return false;
     }
   };
