@@ -1,44 +1,33 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { getProjectsByLeaderId, getPaymentRequests } from '@/lib/storage';
+import { getProjectsByLeaderId, getAllPaymentRequests } from '@/lib/storage';
 import { Project, PaymentRequest } from '@/lib/types';
 
 const LeaderDashboard = () => {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [recentPayments, setRecentPayments] = useState<PaymentRequest[]>([]);
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const loadData = async () => {
-      if (user) {
-        try {
-          setLoading(true);
-          const userProjects = await getProjectsByLeaderId(user.id);
-          setProjects(userProjects);
-          
-          // Use getPaymentRequests and filter by leaderId instead
-          const allPayments = await getPaymentRequests();
-          const leaderPayments = allPayments
-            .filter(payment => 
-              userProjects.some(project => project.id === payment.projectId)
-            )
-            .slice(0, 3);
-          setRecentPayments(leaderPayments);
-        } catch (error) {
-          console.error('Error loading dashboard data:', error);
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadData();
+    if (user) {
+      const userProjects = getProjectsByLeaderId(user.id);
+      setProjects(userProjects);
+      
+      // Use getAllPaymentRequests and filter by leaderId instead
+      const allPayments = getAllPaymentRequests();
+      const leaderPayments = allPayments
+        .filter(payment => 
+          userProjects.some(project => project.id === payment.projectId)
+        )
+        .slice(0, 3);
+      setRecentPayments(leaderPayments);
+    }
   }, [user]);
 
   const getStatusBadge = (status: string) => {
@@ -66,17 +55,6 @@ const LeaderDashboard = () => {
     if (project.totalWork === 0) return 0;
     return Math.min(100, Math.round((project.completedWork / project.totalWork) * 100));
   };
-
-  if (loading) {
-    return (
-      <div className="container mx-auto p-4">
-        <h1 className="text-4xl font-bold mb-6">Leader Dashboard</h1>
-        <div className="flex items-center justify-center h-64">
-          <p>Loading dashboard data...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="container mx-auto p-4">

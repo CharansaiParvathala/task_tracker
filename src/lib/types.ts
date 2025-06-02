@@ -60,8 +60,7 @@ export interface Location {
 export interface PhotoWithMetadata {
   dataUrl: string;
   timestamp: string;
-  location?: Location;
-  binaryData?: ArrayBuffer; // Binary representation of the image
+  location: Location;
 }
 
 export interface DocumentFile {
@@ -76,7 +75,6 @@ export interface DocumentFile {
 export interface ProgressUpdate {
   id: string;
   projectId: string;
-  projectFolder?: string; // Optional folder path where the update is stored
   date: string;
   completedWork: number; // in meters
   timeTaken: number; // in hours
@@ -86,18 +84,19 @@ export interface ProgressUpdate {
   startMeterReading?: PhotoWithMetadata;
   endMeterReading?: PhotoWithMetadata;
   documents?: DocumentFile[];
-  location?: Location;
+  location?: Location; // Location property is now properly defined
 }
 
 export interface PaymentRequest {
   id: string;
   projectId: string;
-  progressUpdateId: string;
+  progressUpdateId?: string;
   date: string;
   purposes: PaymentPurpose[];
+  status: "pending" | "approved" | "rejected" | "scheduled" | "paid";
+  checkerNotes?: string;
+  scheduledDate?: string;
   totalAmount: number;
-  status: 'pending' | 'approved' | 'rejected';
-  projectFolder?: string; // Optional folder path where the request is stored
 }
 
 export interface PaymentPurpose {

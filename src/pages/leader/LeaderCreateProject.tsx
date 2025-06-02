@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useNavigate } from 'react-router-dom';
@@ -44,7 +45,6 @@ const LeaderCreateProject = () => {
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     if (!user) {
       toast.error("You must be logged in to create a project");
-      navigate('/login');
       return;
     }
     

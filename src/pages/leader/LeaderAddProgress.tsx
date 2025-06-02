@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,20 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/components/ui/sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { useNavigate } from 'react-router-dom';
-import { getProjectsByLeaderId, getAllVehicles, createProgressUpdate } from '@/lib/storage';
+import { getProjectsByLeaderId, getAllVehicles, addProgressUpdate, updateProject } from '@/lib/storage';
 import { Project, Vehicle, PhotoWithMetadata, ProgressUpdate } from '@/lib/types';
 import { Progress } from '@/components/ui/progress';
 import { Clock, Percent } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { isWithinTimeWindow, formatTimeWindow } from '@/lib/utils';
-import { useLanguage } from '@/context/language-context';
-
-// Utility function to convert image to binary format
-const convertImageToBinary = async (dataUrl: string): Promise<ArrayBuffer> => {
-  const response = await fetch(dataUrl);
-  const blob = await response.blob();
-  return blob.arrayBuffer();
-};
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Simple component to display progress photos
 const ImageDisplay = ({ images, onRemove }) => {
@@ -58,24 +50,20 @@ const ImageDisplay = ({ images, onRemove }) => {
 const LeaderAddProgress = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { t } = useLanguage();
   const [projects, setProjects] = useState<Project[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [useVehicle, setUseVehicle] = useState<boolean>(false);
   const [photos, setPhotos] = useState<PhotoWithMetadata[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [completedWork, setCompletedWork] = useState<string>('');
   const [timeTaken, setTimeTaken] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [startMeterReading, setStartMeterReading] = useState<PhotoWithMetadata | null>(null);
   const [endMeterReading, setEndMeterReading] = useState<PhotoWithMetadata | null>(null);
   const [progressPercentage, setProgressPercentage] = useState<number>(0);
-  const [showSuccessDialog, setShowSuccessDialog] = useState<boolean>(false);
-  const [isWithinAllowedTime, setIsWithinAllowedTime] = useState<boolean>(true);
-  const [timeWindowInfo, setTimeWindowInfo] = useState<string>('');
-
+  
   useEffect(() => {
     if (user) {
       const userProjects = getProjectsByLeaderId(user.id);
@@ -85,7 +73,7 @@ const LeaderAddProgress = () => {
       setVehicles(allVehicles);
     }
   }, [user]);
-
+  
   useEffect(() => {
     // Calculate progress percentage when project or completed work changes
     if (selectedProject && completedWork) {
@@ -97,87 +85,93 @@ const LeaderAddProgress = () => {
       }
     }
   }, [selectedProject, completedWork, projects]);
-
-  useEffect(() => {
-    if (selectedProject) {
-      const project = projects.find(p => p.id === selectedProject);
-      if (project?.updateTimeWindow) {
-        const isAllowed = isWithinTimeWindow(project.updateTimeWindow);
-        setIsWithinAllowedTime(isAllowed);
-        setTimeWindowInfo(formatTimeWindow(project.updateTimeWindow));
-      } else {
-        setIsWithinAllowedTime(true);
-        setTimeWindowInfo('');
-      }
-    }
-  }, [selectedProject, projects]);
-
+  
   const handleRemovePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
   };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedProject || !completedWork || !timeTaken || photos.length === 0) {
-      toast.error(t("app.progressUpdate.allFieldsRequired"));
+  
+  const handleSubmit = () => {
+    if (!selectedProject) {
+      toast.error("Please select a project");
       return;
     }
-
-    if (!isWithinAllowedTime) {
-      toast.error("Progress updates are only allowed during the specified time window");
+    
+    if (!completedWork || isNaN(parseFloat(completedWork)) || parseFloat(completedWork) <= 0) {
+      toast.error("Please enter valid completed work distance");
       return;
     }
-
-    if (useVehicle && (!selectedVehicle || !startMeterReading || !endMeterReading)) {
-      toast.error("Please provide all vehicle details including meter readings");
+    
+    if (!timeTaken || isNaN(parseFloat(timeTaken)) || parseFloat(timeTaken) <= 0) {
+      toast.error("Please enter valid time taken");
       return;
     }
-
-    setLoading(true);
-
+    
+    if (useVehicle) {
+      if (!selectedVehicle) {
+        toast.error("Please select a vehicle");
+        return;
+      }
+      
+      if (!startMeterReading) {
+        toast.error("Please upload start meter reading image");
+        return;
+      }
+      
+      if (!endMeterReading) {
+        toast.error("Please upload end meter reading image");
+        return;
+      }
+    }
+    
+    const selectedProjectObj = projects.find(p => p.id === selectedProject);
+    if (!selectedProjectObj) {
+      toast.error("Selected project not found");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
     try {
-      // Prepare progress update data
-      const progressData = {
+      // Create progress update
+      const progressData: Omit<ProgressUpdate, 'id'> = {
         projectId: selectedProject,
         date: new Date().toISOString(),
-        completedWork: Number(completedWork),
-        timeTaken: Number(timeTaken),
-        photos: photos.map(photo => ({
-          ...photo,
-          location: { latitude: 0, longitude: 0 }
-        })),
-        notes: notes || '',
+        completedWork: parseFloat(completedWork),
+        timeTaken: parseFloat(timeTaken),
+        photos: photos,
+        notes: notes,
         vehicleId: useVehicle ? selectedVehicle : undefined,
-        startMeterReading: startMeterReading ? {
-          ...startMeterReading,
-          location: { latitude: 0, longitude: 0 }
-        } : undefined,
-        endMeterReading: endMeterReading ? {
-          ...endMeterReading,
-          location: { latitude: 0, longitude: 0 }
-        } : undefined
+        startMeterReading: useVehicle ? startMeterReading : undefined,
+        endMeterReading: useVehicle ? endMeterReading : undefined,
+        documents: [] // Empty documents array
       };
-
-      // Store in projects/mail/ folder structure
-      const projectFolder = `projects/mail/${selectedProject}`;
-      await createProgressUpdate(progressData, projectFolder);
-
-      // Show success dialog
-      setShowSuccessDialog(true);
       
-      // Redirect after delay
+      addProgressUpdate(progressData);
+      
+      // Update project completion
+      const newCompletedWork = selectedProjectObj.completedWork + parseFloat(completedWork);
+      const updatedProject = {
+        ...selectedProjectObj,
+        completedWork: newCompletedWork
+      };
+      
+      updateProject(updatedProject);
+      
+      toast.success("Progress update submitted successfully");
+      
+      // Redirect to dashboard after short delay
       setTimeout(() => {
-        navigate('/leader/view-progress');
-      }, 2000);
+        navigate('/leader');
+      }, 1500);
+      
     } catch (error) {
-      console.error('Error submitting progress:', error);
-      toast.error(t("app.progressUpdate.submissionFailed"));
+      console.error("Error submitting progress:", error);
+      toast.error("Failed to submit progress. Please try again.");
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
-
+  
   const today = new Date().toLocaleDateString();
   
   return (
@@ -186,15 +180,6 @@ const LeaderAddProgress = () => {
       <p className="text-muted-foreground mb-8">
         Track work progress for {today}
       </p>
-
-      {!isWithinAllowedTime && timeWindowInfo && (
-        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-          <div className="flex items-center gap-2 text-yellow-800">
-            <Clock className="h-5 w-5" />
-            <p>Progress updates are only allowed {timeWindowInfo}</p>
-          </div>
-        </div>
-      )}
       
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -323,39 +308,48 @@ const LeaderAddProgress = () => {
         
         <Card>
           <CardHeader>
-            <CardTitle>Progress Photos</CardTitle>
+            <CardTitle>Documentation</CardTitle>
             <CardDescription>
               Upload images to track your progress
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex justify-center mb-6">
-              <Button onClick={() => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'image/*';
-                input.onchange = (e) => {
-                  const file = (e.target as HTMLInputElement).files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      const photoData: PhotoWithMetadata = {
-                        dataUrl: reader.result as string,
-                        timestamp: new Date().toISOString(),
-                        location: { latitude: 0, longitude: 0 }
-                      };
-                      setPhotos(prev => [...prev, photoData]);
+            <Tabs defaultValue="photos" className="w-full">
+              <TabsList className="grid w-full grid-cols-1 mb-4">
+                <TabsTrigger value="photos">Progress Images</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="photos" className="space-y-4">
+                <div className="flex justify-center mb-6">
+                  <Button onClick={() => {
+                    // Use standard file input for now
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const photoData: PhotoWithMetadata = {
+                            dataUrl: reader.result as string,
+                            timestamp: new Date().toISOString(),
+                            location: { latitude: 0, longitude: 0 }
+                          };
+                          setPhotos(prev => [...prev, photoData]);
+                        };
+                        reader.readAsDataURL(file);
+                      }
                     };
-                    reader.readAsDataURL(file);
-                  }
-                };
-                input.click();
-              }}>
-                Upload Progress Image
-              </Button>
-            </div>
-            
-            <ImageDisplay images={photos} onRemove={handleRemovePhoto} />
+                    input.click();
+                  }}>
+                    Upload Progress Image
+                  </Button>
+                </div>
+                
+                <ImageDisplay images={photos} onRemove={handleRemovePhoto} />
+              </TabsContent>
+            </Tabs>
             
             {useVehicle && (
               <div className="mt-6 space-y-4">
@@ -467,28 +461,13 @@ const LeaderAddProgress = () => {
             <Button 
               onClick={handleSubmit} 
               className="w-full"
-              disabled={loading}
+              disabled={isSubmitting}
             >
-              {loading ? "Submitting..." : "Submit Progress"}
+              {isSubmitting ? "Submitting..." : "Submit Progress"}
             </Button>
           </CardFooter>
         </Card>
       </div>
-
-      {/* Success Dialog */}
-      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Progress Update Submitted</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p>Your progress update has been successfully submitted and stored.</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              You will be redirected to the dashboard shortly...
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

@@ -1,35 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/sonner';
-import { Project, PaymentPurpose, PhotoWithMetadata, ProgressUpdate } from '@/lib/types';
+import { Project, PaymentPurpose, PhotoWithMetadata } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, Clock } from 'lucide-react';
-import { getProjectById, getProjectsByLeaderId, getProgressUpdatesByProjectId, createPaymentRequest } from '@/lib/storage';
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { Upload, Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { getProjectById } from '@/lib/storage';
 import { isWithinTimeWindow, formatTimeWindow } from '@/lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAuth } from '@/context/AuthContext';
-
-// Utility function to convert image to binary format
-const convertImageToBinary = async (dataUrl: string): Promise<ArrayBuffer> => {
-  const response = await fetch(dataUrl);
-  const blob = await response.blob();
-  return blob.arrayBuffer();
-};
 
 const LeaderRequestPayment = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
-  const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
-  const [selectedProgress, setSelectedProgress] = useState<string>('');
+  const [date, setDate] = useState<Date | undefined>(new Date());
   const [purposes, setPurposes] = useState<PaymentPurpose[]>([
     { type: "food", amount: 0, images: [], remarks: "" }
   ]);
@@ -37,27 +30,18 @@ const LeaderRequestPayment = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [isWithinAllowedTime, setIsWithinAllowedTime] = useState<boolean>(true);
   const [timeWindowInfo, setTimeWindowInfo] = useState<string>('');
-  const [showSuccessDialog, setShowSuccessDialog] = useState<boolean>(false);
   
   // Create file input ref for each purpose
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   useEffect(() => {
-    // Fetch projects for the current user
-    if (user?.id) {
-      const userProjects = getProjectsByLeaderId(user.id);
-      setProjects(userProjects);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    // Fetch progress updates when project is selected
-    if (selectedProject) {
-      const updates = getProgressUpdatesByProjectId(selectedProject);
-      setProgressUpdates(updates);
-      setSelectedProgress(''); // Reset selected progress when project changes
-    }
-  }, [selectedProject]);
+    // Fetch projects from API or local storage
+    const mockProjects: Project[] = [
+      { id: '1', name: 'Project A', leaderId: '1', createdAt: '2024-01-01', workers: 10, totalWork: 1000, completedWork: 500 },
+      { id: '2', name: 'Project B', leaderId: '1', createdAt: '2024-01-01', workers: 10, totalWork: 1000, completedWork: 500 },
+    ];
+    setProjects(mockProjects);
+  }, []);
 
   useEffect(() => {
     // Calculate total amount whenever purposes change
@@ -82,7 +66,7 @@ const LeaderRequestPayment = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedProject || !selectedProgress || purposes.length === 0) {
+    if (!selectedProject || !date || purposes.length === 0) {
       toast.error(t("app.paymentRequest.allFieldsRequired"));
       return;
     }
@@ -95,40 +79,18 @@ const LeaderRequestPayment = () => {
     setLoading(true);
 
     try {
-      // Convert all images to binary format
-      const convertedPurposes = await Promise.all(
-        purposes.map(async (purpose) => ({
-          ...purpose,
-          images: await Promise.all(
-            purpose.images.map(async (image) => ({
-              ...image,
-              binaryData: await convertImageToBinary(image.dataUrl)
-            }))
-          )
-        }))
-      );
-
       // Prepare payment request data
       const paymentRequest = {
         projectId: selectedProject,
-        progressUpdateId: selectedProgress,
-        date: new Date().toISOString(),
-        purposes: convertedPurposes,
+        date: date.toISOString(),
+        purposes: purposes,
         totalAmount: totalAmount,
-        status: 'pending' as const
       };
 
-      // Store in projects/mail/ folder structure
-      const projectFolder = `projects/mail/${selectedProject}`;
-      createPaymentRequest(paymentRequest, projectFolder);
-
-      // Show success dialog
-      setShowSuccessDialog(true);
-      
-      // Redirect after delay
-      setTimeout(() => {
-        navigate('/leader/view-payment');
-      }, 2000);
+      // Send payment request to API
+      console.log('Payment Request Data:', paymentRequest);
+      toast.success(t("app.paymentRequest.requestSent"));
+      navigate('/leader/view-payment');
     } catch (error) {
       console.error('Payment request error:', error);
       toast.error(t("app.paymentRequest.requestFailed"));
@@ -244,37 +206,48 @@ const LeaderRequestPayment = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="project">{t("app.paymentRequest.project")}</Label>
-          <Select value={selectedProject} onValueChange={setSelectedProject}>
+          <Select onValueChange={setSelectedProject}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder={t("app.paymentRequest.selectProject")} />
             </SelectTrigger>
             <SelectContent>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
-                  {project.name} - {project.completedWork}m completed
+                  {project.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {selectedProject && (
-          <div>
-            <Label htmlFor="progress">{t("app.paymentRequest.progress")}</Label>
-            <Select value={selectedProgress} onValueChange={setSelectedProgress}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("app.paymentRequest.selectProgress")} />
-              </SelectTrigger>
-              <SelectContent>
-                {progressUpdates.map((update) => (
-                  <SelectItem key={update.id} value={update.id}>
-                    {new Date(update.date).toLocaleDateString()} - {update.completedWork}m completed
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <div>
+          <Label>{t("app.paymentRequest.date")}</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !date && "text-muted-foreground"
+                )}
+              >
+                {date ? format(date, "PPP") : <span>{t("app.paymentRequest.pickDate")}</span>}
+                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={setDate}
+                disabled={(date) =>
+                  date > new Date()
+                }
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
 
         <div>
           <Label>{t("app.paymentRequest.purposes")}</Label>
@@ -385,21 +358,6 @@ const LeaderRequestPayment = () => {
           {loading ? t("common.loading") : t("app.paymentRequest.submit")}
         </Button>
       </form>
-
-      {/* Success Dialog */}
-      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Payment Request Submitted</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p>Your payment request has been successfully submitted and stored.</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              You will be redirected to the payment requests page shortly...
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

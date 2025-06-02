@@ -1,23 +1,24 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '@/lib/types';
-import { getCurrentUser, setCurrentUser, logoutUser, registerUser, getUserByEmail } from '@/lib/storage';
+import { getCurrentUser, setCurrentUser, logoutUser, registerUser } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/sonner';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password?: string) => void;
   logout: () => void;
-  register: (name: string, email: string, password: string, phone: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string, phone: string) => boolean;
   isAuthenticated: boolean;
   role: UserRole | null;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: async () => {},
+  login: () => {},
   logout: () => {},
-  register: async () => false,
+  register: () => false,
   isAuthenticated: false,
   role: null,
 });
@@ -36,19 +37,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const login = async (email: string, password: string) => {
+  // Updated login function to properly handle user roles
+  const login = (email: string, password?: string) => {
     try {
-      const foundUser = await getUserByEmail(email);
+      // In a real app, we would validate credentials properly
+      // For this demo, determine role from the email
+      let role: UserRole = 'leader';
       
-      if (!foundUser) {
-        toast.error('User not found');
-        return;
+      if (email.includes('admin')) {
+        role = 'admin';
+      } else if (email.includes('checker')) {
+        role = 'checker';
+      } else if (email.includes('owner')) {
+        role = 'owner';
+      } else {
+        role = 'leader';
       }
-
-      if (foundUser.password !== password) {
-        toast.error('Invalid password');
-        return;
-      }
+      
+      // Create user object based on role
+      const foundUser: User = { 
+        id: '1', 
+        name: email.split('@')[0], 
+        email, 
+        password: password || '', 
+        role
+      };
       
       setUser(foundUser);
       setCurrentUser(foundUser);
@@ -88,25 +101,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate('/login');
   };
   
-  const register = async (name: string, email: string, password: string, phone: string): Promise<boolean> => {
-    try {
-      // Try registering the user - we're assigning a default role of 'leader'
-      const result = await registerUser(name, email, password, 'leader');
-      
-      if (result.success) {
-        toast.success("Registration successful!", {
-          description: "You can now log in with your credentials.",
-        });
-        return true;
-      } else {
-        toast.error("Registration failed", {
-          description: result.message,
-        });
-        return false;
-      }
-    } catch (error) {
-      console.error('Registration error:', error);
-      toast.error('Registration failed. Please try again.');
+  const register = (name: string, email: string, password: string, phone: string): boolean => {
+    // Try registering the user - we're assigning a default role of 'leader'
+    const result = registerUser(name, email, password, 'leader');
+    
+    if (result.success) {
+      toast.success("Registration successful!", {
+        description: "You can now log in with your credentials.",
+      });
+      return true;
+    } else {
+      toast.error("Registration failed", {
+        description: result.message,
+      });
       return false;
     }
   };
