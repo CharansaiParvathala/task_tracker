@@ -89,7 +89,7 @@ const AdminDashboard = () => {
     endTime: '17:00',
     daysOfWeek: [1, 2, 3, 4, 5], // Monday to Friday
   });
-
+  
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -99,71 +99,71 @@ const AdminDashboard = () => {
         // Initialize storage first
         initializeStorage();
         
-        // Fetch all data
-        const allProjects = getAllProjects();
-        setProjects(allProjects);
-        
-        const allPayments = getAllPaymentRequests();
-        setPayments(allPayments);
-        
-        const allUsers = getAllUsers();
-        setUsers(allUsers);
-        
-        const allVehicles = getAllVehicles();
-        setVehicles(allVehicles);
-        
-        // Get leader progress stats
-        const stats = getLeaderProgressStats();
-        setLeaderStats(stats);
-        
-        // Calculate stats
-        const completed = allProjects.reduce((sum, project) => sum + project.completedWork, 0);
-        const planned = allProjects.reduce((sum, project) => sum + project.totalWork, 0);
-        setTotalCompletedWork(completed);
-        setTotalPlannedWork(planned);
-        
-        const paidAmount = allPayments
-          .filter(payment => payment.status === 'paid')
-          .reduce((sum, payment) => sum + payment.totalAmount, 0);
-        setTotalPaid(paidAmount);
-        
-        const pendingCount = allPayments
-          .filter(payment => payment.status === 'pending' || payment.status === 'approved')
-          .length;
-        setPendingPayments(pendingCount);
-        
-        // Prepare chart data
-        const roleCount = allUsers.reduce((acc: Record<string, number>, user) => {
-          acc[user.role] = (acc[user.role] || 0) + 1;
-          return acc;
-        }, {});
-        
-        setUserRolesData(
-          Object.entries(roleCount).map(([role, count]) => ({
-            name: role,
-            value: count
-          }))
-        );
-        
-        // Project status data
-        const completedProjects = allProjects.filter(p => 
-          p.completedWork >= p.totalWork
-        ).length;
-        
-        const inProgressProjects = allProjects.filter(p => 
-          p.completedWork > 0 && p.completedWork < p.totalWork
-        ).length;
-        
-        const notStartedProjects = allProjects.filter(p => 
-          p.completedWork === 0
-        ).length;
-        
-        setProjectStatusData([
-          { name: "Completed", value: completedProjects },
-          { name: "In Progress", value: inProgressProjects },
-          { name: "Not Started", value: notStartedProjects }
-        ].filter(item => item.value > 0));
-        
+    // Fetch all data
+    const allProjects = getAllProjects();
+    setProjects(allProjects);
+    
+    const allPayments = getAllPaymentRequests();
+    setPayments(allPayments);
+    
+    const allUsers = getAllUsers();
+    setUsers(allUsers);
+    
+    const allVehicles = getAllVehicles();
+    setVehicles(allVehicles);
+    
+    // Get leader progress stats
+    const stats = getLeaderProgressStats();
+    setLeaderStats(stats);
+    
+    // Calculate stats
+    const completed = allProjects.reduce((sum, project) => sum + project.completedWork, 0);
+    const planned = allProjects.reduce((sum, project) => sum + project.totalWork, 0);
+    setTotalCompletedWork(completed);
+    setTotalPlannedWork(planned);
+    
+    const paidAmount = allPayments
+      .filter(payment => payment.status === 'paid')
+      .reduce((sum, payment) => sum + payment.totalAmount, 0);
+    setTotalPaid(paidAmount);
+    
+    const pendingCount = allPayments
+      .filter(payment => payment.status === 'pending' || payment.status === 'approved')
+      .length;
+    setPendingPayments(pendingCount);
+    
+    // Prepare chart data
+    const roleCount = allUsers.reduce((acc: Record<string, number>, user) => {
+      acc[user.role] = (acc[user.role] || 0) + 1;
+      return acc;
+    }, {});
+    
+    setUserRolesData(
+      Object.entries(roleCount).map(([role, count]) => ({
+        name: role,
+        value: count
+      }))
+    );
+    
+    // Project status data
+    const completedProjects = allProjects.filter(p => 
+      p.completedWork >= p.totalWork
+    ).length;
+    
+    const inProgressProjects = allProjects.filter(p => 
+      p.completedWork > 0 && p.completedWork < p.totalWork
+    ).length;
+    
+    const notStartedProjects = allProjects.filter(p => 
+      p.completedWork === 0
+    ).length;
+    
+    setProjectStatusData([
+      { name: "Completed", value: completedProjects },
+      { name: "In Progress", value: inProgressProjects },
+      { name: "Not Started", value: notStartedProjects }
+    ].filter(item => item.value > 0));
+    
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError('Failed to load dashboard data. Please try refreshing the page.');
@@ -227,7 +227,7 @@ const AdminDashboard = () => {
       setPaymentTimeWindow({ ...currentWindow, daysOfWeek: newDays });
     }
   };
-
+  
   const getOverallProgress = () => {
     if (totalPlannedWork === 0) return 0;
     return Math.round((totalCompletedWork / totalPlannedWork) * 100);
@@ -262,7 +262,7 @@ const AdminDashboard = () => {
       </div>
     );
   }
-
+  
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-4xl font-bold mb-6">Admin Dashboard</h1>

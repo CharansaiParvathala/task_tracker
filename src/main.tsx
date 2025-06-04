@@ -1,11 +1,10 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { ThemeProvider } from './context/theme-provider';
 import { LanguageProvider } from './context/language-context';
-import { AuthProvider } from './context/auth-context';
+import { AuthProvider } from './context/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import { initToastSwipeSupport } from './utils/toast-swipe';
 import { BrowserRouter as Router } from 'react-router-dom';

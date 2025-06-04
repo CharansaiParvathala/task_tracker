@@ -12,10 +12,10 @@ import { useToast } from '@/components/ui/use-toast';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 
 export default function Login() {
-  const auth = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login } = useAuth();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -34,18 +34,40 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await auth.login(formData.email, formData.password);
+      await login(formData.email, formData.password);
       toast({
-        title: "Success",
-        description: t("app.auth.loginSuccess"),
+        title: 'Success',
+        description: 'Login successful! Redirecting...',
       });
-      navigate("/");
+      
+      // Get the current user from storage to determine their role
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+      if (currentUser) {
+        // Navigate based on role
+        switch (currentUser.role) {
+          case 'leader':
+            navigate('/leader/dashboard');
+            break;
+          case 'checker':
+            navigate('/checker/dashboard');
+            break;
+          case 'owner':
+            navigate('/owner/dashboard');
+            break;
+          case 'admin':
+            navigate('/admin/dashboard');
+            break;
+          default:
+            navigate('/');
+        }
+      } else {
+        navigate('/');
+      }
     } catch (error) {
-      console.error("Login error:", error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : t("app.auth.loginError"),
-        variant: "destructive",
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Login failed',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);

@@ -1,5 +1,18 @@
 import { connect, Cluster, Bucket, Collection } from 'couchbase';
 
+interface Project {
+  id: string;
+  name: string;
+  leaderId: string;
+  workers: number;
+  totalWork: number;
+  completedWork: number;
+  createdAt: string;
+  status: 'active' | 'completed' | 'cancelled';
+  leaderName: string;
+  leaderEmail: string;
+}
+
 class CouchbaseService {
   private static instance: CouchbaseService;
   private cluster: Cluster | null = null;
@@ -34,6 +47,30 @@ class CouchbaseService {
       return true;
     } catch (error) {
       console.error('Failed to connect to Couchbase:', error);
+      throw error;
+    }
+  }
+
+  async createProject(project: Project) {
+    try {
+      if (!this.collection) {
+        await this.connect();
+      }
+      
+      if (!this.collection) {
+        throw new Error('Failed to connect to Couchbase');
+      }
+
+      const docId = `project::${project.id}`;
+      await this.collection.insert(docId, {
+        ...project,
+        type: 'project',
+        updatedAt: new Date().toISOString()
+      });
+
+      return { success: true, projectId: docId };
+    } catch (error) {
+      console.error('Failed to create project:', error);
       throw error;
     }
   }

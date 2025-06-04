@@ -92,16 +92,76 @@ export function getUsers(): User[] {
 export const getAllUsers = getUsers;
 
 export function getCurrentUser(): User | null {
-  const user = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-  return user ? JSON.parse(user) : null;
+  try {
+    const user = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    if (!user) return null;
+    
+    const parsedUser = JSON.parse(user);
+    
+    // Validate the user object has all required fields
+    if (!parsedUser.id || !parsedUser.email || !parsedUser.name || !parsedUser.role || !parsedUser.password) {
+      console.error('Invalid user object in storage: missing required fields');
+      logoutUser();
+      return null;
+    }
+    
+    // Verify that the user still exists in the users list
+    const users = getUsers();
+    const userExists = users.some(u => u.id === parsedUser.id);
+    
+    if (!userExists) {
+      console.error('User no longer exists in users list');
+      logoutUser();
+      return null;
+    }
+    
+    return parsedUser;
+  } catch (error) {
+    console.error('Error getting current user:', error);
+    // Clear any potentially corrupted data
+    logoutUser();
+    return null;
+  }
 }
 
 export function setCurrentUser(user: User): void {
-  localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+  try {
+    // Verify that the user exists in the users list
+    const users = getUsers();
+    const userExists = users.some(u => u.id === user.id);
+    
+    if (!userExists) {
+      console.error('Attempted to set non-existent user as current user');
+      return;
+    }
+    
+    // Ensure we have all required fields
+    if (!user.id || !user.email || !user.name || !user.role || !user.password) {
+      console.error('Invalid user object: missing required fields');
+      return;
+    }
+    
+    // Store the complete user object
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+    
+    // Verify the storage was successful
+    const storedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    if (!storedUser) {
+      throw new Error('Failed to store user in localStorage');
+    }
+  } catch (error) {
+    console.error('Error setting current user:', error);
+    // Clear any potentially corrupted data
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+  }
 }
 
 export function logoutUser(): void {
-  localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+  try {
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+  } catch (error) {
+    console.error('Error logging out user:', error);
+  }
 }
 
 export function getUserByEmail(email: string): User | null {
@@ -120,11 +180,6 @@ export function getUsersByRole(role: UserRole): User[] {
 }
 
 export function registerUser(name: string, email: string, password: string, role: UserRole): { success: boolean; message: string } {
-  // Validate role - only allow 'leader' for new registrations
-  if (role !== 'leader') {
-    return { success: false, message: 'Only team leader registration is allowed.' };
-  }
-  
   const users = getUsers();
   
   // Check if email already exists
@@ -216,16 +271,28 @@ export function getProjectsByLeaderId(leaderId: string): Project[] {
 }
 
 export function createProject(project: Omit<Project, 'id'>): Project {
-  const projects = getProjects();
-  const newProject: Project = {
-    ...project,
-    id: uuidv4(),
-    completedWork: 0
-  };
-  
-  projects.push(newProject);
-  localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
-  return newProject;
+  try {
+    const projects = getProjects();
+    const newProject: Project = {
+      ...project,
+      id: uuidv4(),
+      completedWork: 0
+    };
+    
+    projects.push(newProject);
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
+    
+    // Verify the project was stored successfully
+    const storedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+    if (!storedProjects) {
+      throw new Error('Failed to store project in localStorage');
+    }
+    
+    return newProject;
+  } catch (error) {
+    console.error('Error creating project:', error);
+    throw error;
+  }
 }
 
 export function updateProject(project: Project): void {

@@ -13,11 +13,17 @@ export const authService = {
       const user = getUserByEmail(email);
       
       if (!user) {
-        throw new Error('User not found');
+        return {
+          success: false,
+          error: 'User not found'
+        };
       }
       
       if (user.password !== password) {
-        throw new Error('Invalid password');
+        return {
+          success: false,
+          error: 'Invalid password'
+        };
       }
       
       // Set current user in storage
@@ -25,15 +31,13 @@ export const authService = {
       
       return {
         success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role
-        }
+        user: user
       };
     } catch (error) {
-      throw error;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An unexpected error occurred'
+      };
     }
   },
 
@@ -42,13 +46,19 @@ export const authService = {
       const result = registerUser(name, email, password, role);
       
       if (!result.success) {
-        throw new Error(result.message);
+        return {
+          success: false,
+          error: result.message
+        };
       }
       
       // Login the user after successful signup
       return this.login(email, password);
     } catch (error) {
-      throw error;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An unexpected error occurred'
+      };
     }
   },
 
@@ -57,7 +67,10 @@ export const authService = {
       const user = getUserByEmail(email);
       
       if (!user) {
-        throw new Error('User not found');
+        return {
+          success: false,
+          error: 'User not found'
+        };
       }
       
       // Update user's password
@@ -66,15 +79,13 @@ export const authService = {
       
       return {
         success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role
-        }
+        user: user
       };
     } catch (error) {
-      throw error;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An unexpected error occurred'
+      };
     }
   },
 }; 

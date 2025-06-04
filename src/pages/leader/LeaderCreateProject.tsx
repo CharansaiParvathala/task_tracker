@@ -1,16 +1,16 @@
-
-import { useState } from 'react';
-import { useAuth } from '@/context/auth-context';
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from '@/components/ui/sonner';
-import { createProject } from '@/lib/storage';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { useToast } from '../../components/ui/use-toast';
+import { createProject, getCurrentUser } from '../../lib/storage';
+import { api } from '../../lib/api';
 
 const formSchema = z.object({
   name: z.string().min(3, {
@@ -25,9 +25,24 @@ const formSchema = z.object({
 });
 
 const LeaderCreateProject = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Verify user session on mount and when user changes
+  useEffect(() => {
+    const verifySession = () => {
+      if (!loading) {
+        const currentUser = getCurrentUser();
+        if (!currentUser) {
+          navigate('/login');
+        }
+      }
+    };
+    
+    verifySession();
+  }, [loading, navigate]);
   
   const {
     register,
@@ -42,38 +57,75 @@ const LeaderCreateProject = () => {
     },
   });
   
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    if (!user) {
-      toast.error("You must be logged in to create a project");
+  const onSubmit = useCallback(async (values: z.infer<typeof formSchema>) => {
+    // Double-check user session before proceeding
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "Your session has expired. Please log in again.",
+        variant: "destructive",
+      });
+      navigate('/login');
       return;
     }
     
     setIsSubmitting(true);
     
     try {
+      // Create project in local storage
       const newProject = createProject({
         name: values.name,
-        leaderId: user.id,
+        leaderId: currentUser.id,
         workers: parseInt(values.workers),
         totalWork: parseFloat(values.totalWork),
         completedWork: 0,
         createdAt: new Date().toISOString(),
       });
+
+      // Store project in Couchbase via API
+      await api.createProject({
+        id: newProject.id,
+        name: values.name,
+        leaderId: currentUser.id,
+        workers: parseInt(values.workers),
+        totalWork: parseFloat(values.totalWork),
+        completedWork: 0,
+        createdAt: new Date().toISOString(),
+        status: 'active',
+        leaderName: currentUser.name,
+        leaderEmail: currentUser.email
+      });
       
-      toast.success("Project created successfully");
+      toast({
+        title: "Success",
+        description: "Project created successfully",
+      });
       
-      // Redirect to dashboard after short delay
+      // Redirect to leader page after short delay
       setTimeout(() => {
         navigate('/leader');
       }, 1500);
       
     } catch (error) {
       console.error("Error creating project:", error);
-      toast.error("Failed to create project. Please try again.");
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create project. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [navigate, toast]);
+  
+  if (loading) {
+    return <div className="container mx-auto p-4">Loading...</div>;
+  }
+  
+  if (!user) {
+    return null;
+  }
   
   return (
     <div className="container mx-auto p-4">

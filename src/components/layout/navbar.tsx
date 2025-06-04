@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/auth-context';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/theme-provider';
 import { useLanguage } from '@/context/language-context';
 import { ModeToggle } from '@/components/shared/mode-toggle';
